@@ -92,12 +92,11 @@ class Search(Resource):
         if domain == 'title':
             return Response(top_50_similar_title_books(query).to_json(orient="records"), mimetype='application/json')
         elif domain == 'all':
-            result = top_50_with_similar_genres(query).sort_values(by='book_average_rating', ascending=False).head(5)
-            result1 = books_by_author(query).sort_values(by='book_average_rating', ascending=False).head(5)
-            result2 = top_50_similar_title_books(query).sort_values(by='book_average_rating', ascending=False).head(5)
-            result3 = top_50_similar_description_books(query).sort_values(by='book_average_rating',
-                                                                          ascending=False).head(5)
-            result = pd.concat([result, result1, result2, result3], axis=0)
+            result = top_50_with_similar_genres(query)
+            result1 = books_by_author(query)
+            result2 = top_50_similar_title_books(query)
+            result3 = top_50_similar_description_books(query)
+            result = pd.concat([result2, result3, result1, result], axis=0)
             return Response(result.to_json(orient="records"),
                             mimetype='application/json')
         elif domain == 'description':
