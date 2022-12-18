@@ -17,6 +17,7 @@ import numpy as np  # linear algebra
 import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
 from pymysql import connect
 from gevent import monkey
+
 monkey.patch_all()
 warnings.filterwarnings('ignore')
 
@@ -53,22 +54,24 @@ last = datetime.datetime.now()
 
 def update_df_books_users(user_id):
     global last
-    global database
     global df_books_users
+    database1 = connect(host="192.168.100.12"
+                        , user="testing", password="Test1234@", database="heaven", port=3306)
     sql = "select * from reviews_changes"
-    myCursor = database.cursor()
+    myCursor = database1.cursor()
     myCursor.execute(sql)
+    myCursor.close()
     field_names = [i[0] for i in myCursor.description]
     changes_df = pd.DataFrame(myCursor.fetchall(), columns=field_names)
     changes_df = changes_df.set_index('id')
     if user_id not in changes_df['user_id'].values:
-        database.commit()
+        database1.commit()
         return
     sql = "delete from reviews_changes where user_id = %s"
-    myCursor = database.cursor()
+    myCursor = database1.cursor()
     myCursor.execute(sql, user_id)
-
-    myCursor = database.cursor()
+    myCursor.close()
+    myCursor = database1.cursor()
     sql = "select * from reviews where user_id = %s"
     myCursor.execute(sql, user_id)
     last = datetime.datetime.now()
@@ -77,7 +80,9 @@ def update_df_books_users(user_id):
     df = df.set_index('id')
     df_books_users = df_books_users.reindex(df_books_users.index.union(df.index))
     df_books_users.update(df)
-    database.commit()
+    database1.commit()
+    database.close()
+    myCursor.close()
 
 
 class TopN(Resource):
@@ -87,7 +92,6 @@ class TopN(Resource):
 
 class RecommendBySimilarUsers(Resource):
     def get(self, user_id):
-        print(df_books_users.shape)
         return Response(similar_user_df(user_id).to_json(orient="records"), mimetype='application/json')
 
 
@@ -207,7 +211,6 @@ def top_50_similar_title_books(title):
     query = title
     print(title)
     processed = re.sub("[^a-zA-Z0-9 ]", "", query.lower())
-    print(processed)
     query_vec = vectorizer.transform([processed])
     similarity = cosine_similarity(query_vec, tfidf_title_fc).flatten()
     indices = np.argpartition(similarity, -50)[-50:]
@@ -221,7 +224,6 @@ def top_50_with_similar_genres(query):
     # genres = df_books_processed[df_books_processed['book_id'] == int(query)]['genres']
     # print(genres.values)
     processed = re.sub("[^a-zA-Z0-9]", " ", query.lower())
-    print(processed)
     query_vec = vectorizer.transform([processed])
     similarity = cosine_similarity(query_vec, tfidf_genres_fc).flatten()
     indices = np.argpartition(similarity, -50)[-50:]
