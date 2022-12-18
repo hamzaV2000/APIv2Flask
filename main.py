@@ -16,7 +16,8 @@ from flask_restful import Api, Resource
 import numpy as np  # linear algebra
 import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
 from pymysql import connect
-
+from gevent import monkey
+monkey.patch_all()
 warnings.filterwarnings('ignore')
 
 stopwords = set(['br', 'the', 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', "you're", "you've",
