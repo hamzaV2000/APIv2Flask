@@ -50,13 +50,26 @@ df_books_users = pd.read_sql("select * from reviews", database)
 last = datetime.datetime.now()
 
 
-def update_df_books_users():
+def update_df_books_users(user_id):
     global last
     global database
     global df_books_users
+    sql = "select * from reviews_changes"
     myCursor = database.cursor()
-    sql = "select * from reviews where timestamp > %s"
-    myCursor.execute(sql, last)
+    myCursor.execute(sql)
+    field_names = [i[0] for i in myCursor.description]
+    changes_df = pd.DataFrame(myCursor.fetchall(), columns=field_names)
+    changes_df = changes_df.set_index('id')
+    if user_id not in changes_df['user_id'].values:
+        database.commit()
+        return
+    sql = "delete from reviews_changes where user_id = %s"
+    myCursor = database.cursor()
+    myCursor.execute(sql, user_id)
+
+    myCursor = database.cursor()
+    sql = "select * from reviews where user_id = %s"
+    myCursor.execute(sql, user_id)
     last = datetime.datetime.now()
     field_names = [i[0] for i in myCursor.description]
     df = pd.DataFrame(myCursor.fetchall(), columns=field_names)
@@ -226,7 +239,7 @@ def top_50_similar_description_books(query):
 
 
 def similar_user_df(user_id):
-    update_df_books_users()
+    update_df_books_users(user_id)
     df_liked_books = df_books_users[df_books_users['user_id'] == user_id]
     liked_books = set(df_liked_books['book_id'])
     top_5_liked_books = df_liked_books.sort_values(by='user_rating', ascending=False)['book_id'][:5]
@@ -246,11 +259,11 @@ def popular_recommendation(recs, liked_books):
     popular_recs = all_recs.sort_values("score", ascending=False)
     popular_recs_unbiased = popular_recs[~popular_recs["book_id"].isin(liked_books)].drop_duplicates(
         subset=['title_without_series'])
-    return popular_recs_unbiased.sort_values(by='book_average_rating', ascending=False).head(12)
+    return popular_recs_unbiased.head(12)
 
 
 def user_favorites(user_id):
-    update_df_books_users()
+    update_df_books_users(user_id)
     result = df_books_users[df_books_users['user_id'] == user_id]
     result = result[result['user_rating'] > 4.0]
     result = df_books_processed.merge(result, on='book_id')
