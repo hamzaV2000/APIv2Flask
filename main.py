@@ -7,6 +7,7 @@ import warnings
 import re
 from pickle import dump, load
 
+import pymysql
 from flask_cors import CORS
 from gevent.pywsgi import WSGIServer
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -55,8 +56,12 @@ last = datetime.datetime.now()
 def update_df_books_users(user_id):
     global last
     global df_books_users
-    database1 = connect(host="192.168.100.12"
-                        , user="testing", password="Test1234@", database="heaven", port=3306)
+    try:
+        database1 = connect(host="192.168.100.12"
+                            , user="testing", password="Test1234@", database="heaven", port=3306)
+    except:
+        print("error with the database try again")
+
     sql = "select * from reviews_changes"
     myCursor = database1.cursor()
     myCursor.execute(sql)
@@ -87,44 +92,50 @@ def update_df_books_users(user_id):
 
 class TopN(Resource):
     def get(self):
-        return Response(top_book_average_rating().to_json(orient="records"), mimetype='application/json')
+        return Response(top_book_average_rating().head(50).to_json(orient="records")
+                        , mimetype='application/json')
 
 
 class RecommendBySimilarUsers(Resource):
     def get(self, user_id):
-        return Response(similar_user_df(user_id).to_json(orient="records"), mimetype='application/json')
+        return Response(similar_user_df(user_id).head(50).to_json(orient="records")
+                        , mimetype='application/json')
 
 
 class RecommendBySimilarBooks(Resource):
     def get(self, title):
-        return Response(top_50_similar_title_books(title).to_json(orient="records"), mimetype='application/json')
+        return Response(top_50_similar_title_books(title).head(50).to_json(orient="records")
+                        , mimetype='application/json')
 
 
 class UserFavorites(Resource):
     def get(self, user_id):
-        return Response(user_favorites(user_id).to_json(orient="records"), mimetype='application/json')
+        return Response(user_favorites(user_id).head(50).to_json(orient="records")
+                        , mimetype='application/json')
 
 
 class Search(Resource):
     def get(self, domain, query):
         if domain == 'title':
-            return Response(top_50_similar_title_books(query).to_json(orient="records"), mimetype='application/json')
+            return Response(top_50_similar_title_books(query).head(50).to_json(orient="records")
+                            , mimetype='application/json')
         elif domain == 'all':
-            result = top_50_with_similar_genres(query)
-            result1 = books_by_author(query)
-            result2 = top_50_similar_title_books(query)
-            result3 = top_50_similar_description_books(query)
+            result = top_50_with_similar_genres(query).head(50)
+            result1 = books_by_author(query).head(50)
+            result2 = top_50_similar_title_books(query).head(50)
+            result3 = top_50_similar_description_books(query).head(50)
             result = pd.concat([result2, result3, result1, result], axis=0)
             return Response(result.to_json(orient="records"),
                             mimetype='application/json')
         elif domain == 'description':
-            return Response(top_50_similar_description_books(query).to_json(orient="records"),
+            return Response(top_50_similar_description_books(query).head(50).to_json(orient="records"),
                             mimetype='application/json')
         elif domain == 'genre':
-            return Response(top_50_with_similar_genres(query).to_json(orient="records"),
+            return Response(top_50_with_similar_genres(query).head(50).to_json(orient="records"),
                             mimetype='application/json')
         elif domain == 'author':
-            return Response(books_by_author(query).to_json(orient="records"), mimetype='application/json')
+            return Response(books_by_author(query).head(50).to_json(orient="records")
+                            , mimetype='application/json')
         else:
             return "not found"
 
