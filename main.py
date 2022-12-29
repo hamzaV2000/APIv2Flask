@@ -44,9 +44,11 @@ stopwords = set(['br', 'the', 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'o
                  'won', "won't", 'wouldn', "wouldn't"])
 
 df_books_processed = pd.read_csv('result/books_with_authors_names.csv').dropna()
-
-database = connect(host="192.168.100.12"
-                   , user="testing", password="Test1234@", database="heaven", port=3306)
+host = "192.168.100.12"
+user = "testing"
+password = "Test1234@"
+database = connect(host=host
+                   , user=user, password=password, database="heaven", port=3306)
 # df_books_users = pd.read_csv('result/betaReviews2.csv')
 
 df_books_users = pd.read_sql("select * from reviews", database)
@@ -57,8 +59,8 @@ def update_df_books_users(user_id):
     global last
     global df_books_users
     try:
-        database1 = connect(host="192.168.100.12"
-                            , user="testing", password="Test1234@", database="heaven", port=3306)
+        database1 = connect(host=host
+                            , user=user, password=password, database="heaven", port=3306)
     except:
         print("error with the database try again")
 
