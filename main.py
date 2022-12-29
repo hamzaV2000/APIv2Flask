@@ -288,11 +288,11 @@ app = Flask(__name__)
 api = Api(app)
 CORS(app)
 
-api.add_resource(TopN, "/topn")
-api.add_resource(UserFavorites, "/userFavorites/<int:user_id>")
-api.add_resource(RecommendBySimilarUsers, "/recommendBySimilarUsers/<int:user_id>")
-api.add_resource(RecommendBySimilarBooks, "/recommendBySimilarBooks/<string:title>")
-api.add_resource(Search, "/search/<string:domain>/<string:query>")
+api.add_resource(TopN, "/python/topn")
+api.add_resource(UserFavorites, "/python/userFavorites/<int:user_id>")
+api.add_resource(RecommendBySimilarUsers, "/python/recommendBySimilarUsers/<int:user_id>")
+api.add_resource(RecommendBySimilarBooks, "/python/recommendBySimilarBooks/<string:title>")
+api.add_resource(Search, "/python/search/<string:domain>/<string:query>")
 
 if __name__ == "__main__":
     print('serving')
