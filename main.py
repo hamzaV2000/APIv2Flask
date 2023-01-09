@@ -44,9 +44,9 @@ stopwords = set(['br', 'the', 'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'o
                  'won', "won't", 'wouldn', "wouldn't"])
 
 df_books_processed = pd.read_csv('result/books_with_authors_names.csv').dropna()
-host = "192.168.100.12"
-user = "testing"
-password = "Test1234@"
+host = "0.0.0.0"
+user = "root"
+password = "root1234"
 database = connect(host=host
                    , user=user, password=password, database="heaven", port=3306)
 # df_books_users = pd.read_csv('result/betaReviews2.csv')
@@ -58,11 +58,8 @@ last = datetime.datetime.now()
 def update_df_books_users(user_id):
     global last
     global df_books_users
-    try:
-        database1 = connect(host=host
-                            , user=user, password=password, database="heaven", port=3306)
-    except:
-        print("error with the database try again")
+    database1 = connect(host=host
+                        , user=user, password=password, database="heaven", port=3306)
 
     sql = "select * from reviews_changes"
     myCursor = database1.cursor()
@@ -94,49 +91,49 @@ def update_df_books_users(user_id):
 
 class TopN(Resource):
     def get(self):
-        return Response(top_book_average_rating().head(50).to_json(orient="records")
+        return Response(top_book_average_rating().to_json(orient="records")
                         , mimetype='application/json')
 
 
 class RecommendBySimilarUsers(Resource):
     def get(self, user_id):
-        return Response(similar_user_df(user_id).head(50).to_json(orient="records")
+        return Response(similar_user_df(user_id).to_json(orient="records")
                         , mimetype='application/json')
 
 
 class RecommendBySimilarBooks(Resource):
     def get(self, title):
-        return Response(top_50_similar_title_books(title).head(50).to_json(orient="records")
+        return Response(top_50_similar_title_books(title).to_json(orient="records")
                         , mimetype='application/json')
 
 
 class UserFavorites(Resource):
     def get(self, user_id):
-        return Response(user_favorites(user_id).head(50).to_json(orient="records")
+        return Response(user_favorites(user_id).to_json(orient="records")
                         , mimetype='application/json')
 
 
 class Search(Resource):
     def get(self, domain, query):
         if domain == 'title':
-            return Response(top_50_similar_title_books(query).head(50).to_json(orient="records")
+            return Response(top_50_similar_title_books(query).to_json(orient="records")
                             , mimetype='application/json')
         elif domain == 'all':
-            result = top_50_with_similar_genres(query).head(7)
-            result1 = books_by_author(query).head(7)
-            result2 = top_50_similar_title_books(query).head(7)
-            result3 = top_50_similar_description_books(query).head(7)
+            result = top_50_with_similar_genres(query).head(50)
+            result1 = books_by_author(query).head(50)
+            result2 = top_50_similar_title_books(query).head(50)
+            result3 = top_50_similar_description_books(query).head(50)
             result = pd.concat([result2, result3, result1, result], axis=0)
             return Response(result.to_json(orient="records"),
                             mimetype='application/json')
         elif domain == 'description':
-            return Response(top_50_similar_description_books(query).head(50).to_json(orient="records"),
+            return Response(top_50_similar_description_books(query).to_json(orient="records"),
                             mimetype='application/json')
         elif domain == 'genre':
-            return Response(top_50_with_similar_genres(query).head(50).to_json(orient="records"),
+            return Response(top_50_with_similar_genres(query).to_json(orient="records"),
                             mimetype='application/json')
         elif domain == 'author':
-            return Response(books_by_author(query).head(50).to_json(orient="records")
+            return Response(books_by_author(query).to_json(orient="records")
                             , mimetype='application/json')
         else:
             return "not found"
@@ -260,7 +257,7 @@ def similar_user_df(user_id):
     liked_books = set(df_liked_books['book_id'])
     top_5_liked_books = df_liked_books.sort_values(by='user_rating', ascending=False)['book_id'][:5]
     similar_user = \
-        df_books_users[(df_books_users['book_id'].isin(top_5_liked_books)) & (df_books_users['user_rating'] > 4)][
+        df_books_users[(df_books_users['book_id'].isin(top_5_liked_books)) & (df_books_users['user_rating'] >= 4)][
             'user_id']
     data = df_books_users[(df_books_users['user_id'].isin(similar_user))].merge(df_books_processed, on='book_id')
     return popular_recommendation(data, liked_books)
@@ -281,7 +278,7 @@ def popular_recommendation(recs, liked_books):
 def user_favorites(user_id):
     update_df_books_users(user_id)
     result = df_books_users[df_books_users['user_id'] == user_id]
-    result = result[result['user_rating'] > 4.0]
+    result = result[result['user_rating'] >= 4.0]
     result = df_books_processed.merge(result, on='book_id')
     return result
 
