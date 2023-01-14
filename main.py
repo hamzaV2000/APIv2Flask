@@ -7,10 +7,11 @@ import warnings
 import re
 from pickle import dump, load
 
-
 import pymysql
 from flask_cors import CORS
 from gevent.pywsgi import WSGIServer
+from scipy.sparse import coo_matrix
+from sklearn import preprocessing
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from flask import Flask, Response
@@ -60,11 +61,19 @@ df_books_processed = pd.read_csv('result/books_with_authors_names.csv')[
     ['book_id', 'mod_title', 'book_description', 'genres', 'name', 'num_pages']].dropna()
 
 last = datetime.datetime.now()
+le9 = preprocessing.LabelEncoder()
+le9.fit(df_books_users['user_id'])
+df_books_users['user_id_mapped'] = le9.transform(df_books_users['user_id'])
+
+le1 = preprocessing.LabelEncoder()
+le1.fit(df_books_users['book_id'])
+df_books_users['book_id_mapped'] = le1.transform(df_books_users['book_id'])
 
 
 def update_books_ratings(changed_book_ids):
     global last
     global df_books_ratings
+    global df_books_users
     database1 = connect(host=host
                         , user=user, password=password, database="heaven", port=3306)
     for value in changed_book_ids:
@@ -79,6 +88,10 @@ def update_books_ratings(changed_book_ids):
     database1.commit()
     database1.close()
     myCursor.close()
+    le9.fit(df_books_users['user_id'])
+    df_books_users['user_id_mapped'] = le9.transform(df_books_users['user_id'])
+    le1.fit(df_books_users['book_id'])
+    df_books_users['book_id_mapped'] = le1.transform(df_books_users['book_id'])
 
 
 def update_df_books_users():
@@ -95,6 +108,7 @@ def update_df_books_users():
     changes_df = pd.DataFrame(myCursor.fetchall(), columns=field_names)
     changes_df = changes_df.set_index('id')
     if changes_df.size <= 0:
+        # print("changes is 0")
         database1.commit()
         database1.close()
         return
@@ -103,13 +117,18 @@ def update_df_books_users():
     changedBook_ids = set()
     for user_id in changes_df['user_id'].values:
         sql = "select * from reviews where user_id = %s"
+        # print("select * from reviews where user_id =" + str(user_id))
         myCursor.execute(sql, user_id)
         last = datetime.datetime.now()
         field_names = [i[0] for i in myCursor.description]
         df = pd.DataFrame(myCursor.fetchall(), columns=field_names)
+        # print("df", df.head(5))
         changedBook_ids.update(set(df['book_id']))
         df = df.set_index('id')
-        df_books_users.update(df)
+        if user_id in df_books_users['user_id'].values:
+            df_books_users.update(df)
+        else:
+            df_books_users = pd.concat([df_books_users, df], axis=0)
         sql = "delete from reviews_changes where user_id = %s"
         myCursor.execute(sql, user_id)
 
@@ -127,7 +146,7 @@ class TopN(Resource):
 
 class RecommendBySimilarUsers(Resource):
     def get(self, user_id):
-        return Response(similar_user_df(user_id).to_json(orient="records")
+        return Response(similar_users(user_id).to_json(orient="records")
                         , mimetype='application/json')
 
 
@@ -247,7 +266,7 @@ def top_concised_books():
     top_50_concised_books = df_books_processed[
         (df_books_processed['num_pages'] <= 300) & (df_books_processed['rating_count'] > 3000.0) & (
                 df_books_processed['average_rating'] >= 4.50)].sort_values(by='average_rating',
-                                                                                ascending=False)
+                                                                           ascending=False)
     return top_50_concised_books.merge(df_books_processed, on='book_id').sort_values(
         by='average_rating', ascending=False).head(50)['book_id']
 
@@ -309,12 +328,52 @@ def popular_recommendation(recs, liked_books):
     popular_recs = all_recs.sort_values("score", ascending=False)
     popular_recs_unbiased = popular_recs[~popular_recs["book_id"].isin(liked_books)].drop_duplicates(
         subset=['mod_title'])
-    return popular_recs_unbiased.head(12)
+    return popular_recs_unbiased.head(50)
+
+
+def similar_users(user_id):
+    books_liked_by_user = set(df_books_users[df_books_users['user_id'] == user_id]['book_id'])
+    count_other_similar_users = df_books_users[df_books_users['book_id'].isin(books_liked_by_user)][
+        'user_id'].value_counts()
+    df_similar_user = count_other_similar_users.to_frame().reset_index()
+    df_similar_user.columns = ['user_id', 'matching_book_count']
+    top_onepercent_similar_users = df_similar_user[
+        df_similar_user['matching_book_count'] >= np.percentile(df_similar_user['matching_book_count'], 99)]
+    top_users = set(top_onepercent_similar_users['user_id'])
+    df_similar_user = df_books_users[(df_books_users['user_id'].isin(top_users))][
+        ['user_id_mapped', 'book_id_mapped', 'user_rating', 'user_id', 'book_id']]
+    ratings_mat_coo = coo_matrix(
+        (df_similar_user["user_rating"], (df_similar_user["user_id_mapped"], df_similar_user["book_id_mapped"])))
+    ratings_mat = ratings_mat_coo.tocsr()
+    my_index = list(le9.transform([user_id]))[0]
+    similarity = cosine_similarity(ratings_mat[my_index, :], ratings_mat).flatten()
+    similar_users_index = np.argsort(similarity)[-1:-51:-1]
+    book_title_liked_by_user = set(
+        df_books_users[df_books_users['book_id'].isin(books_liked_by_user)].sort_values(
+            by='user_rating', ascending=False))
+
+    df_similar_users = df_similar_user[(df_similar_user["user_id_mapped"].isin(similar_users_index)) & (
+        ~df_similar_user['book_id'].isin(books_liked_by_user))].merge(
+        df_books_processed, on='book_id').merge(df_books_ratings, on="book_id")
+    print(df_similar_users.head(5))
+    return popular_recommendation(df_similar_users, book_title_liked_by_user)
+
+
+def recommendation(df_similar_users_refined):
+    all_recs = df_similar_users_refined['book_id'].value_counts()
+    all_recs = all_recs.to_frame().reset_index()
+    all_recs.columns = ["book_id", "book_count"]
+    all_recs_book_id = list(all_recs['book_id'])
+    all_recs_new = df_books_processed[df_books_processed['book_id'].isin(all_recs_book_id)]
+    all_recs_new = all_recs_new.merge(all_recs, on='book_id', how='inner')
+    all_recs_new['score'] = all_recs_new['book_count'] * (all_recs_new['book_count'] / all_recs_new['rating_count'])
+    return all_recs_new.sort_values(by='score', ascending=False)[['book_id']].head(50)
 
 
 def user_favorites(user_id):
     update_df_books_users()
     result = df_books_users[df_books_users['user_id'] == user_id]
+    print(result.head(5))
     result = result[result['user_rating'] >= 4.0]
     result = df_books_processed.merge(result, on='book_id')
     return result['book_id']
