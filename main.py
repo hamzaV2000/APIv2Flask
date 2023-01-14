@@ -125,10 +125,15 @@ def update_df_books_users():
         # print("df", df.head(5))
         changedBook_ids.update(set(df['book_id']))
         df = df.set_index('id')
-        if user_id in df_books_users['user_id'].values:
-            df_books_users.update(df)
-        else:
-            df_books_users = pd.concat([df_books_users, df], axis=0)
+        # if user_id in df_books_users['user_id'].values:
+        #     df_books_users.update(df)
+        # else:
+        #    df_books_users = pd.concat([df_books_users, df], axis=0)
+
+        # df_books_users.update(df)
+
+        df_books_users = (pd.concat([df_books_users, df], ignore_index=True, sort=False)
+                          .drop_duplicates(['user_id', 'book_id'], keep='last'))
         sql = "delete from reviews_changes where user_id = %s"
         myCursor.execute(sql, user_id)
 
