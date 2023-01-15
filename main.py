@@ -337,6 +337,7 @@ def popular_recommendation(recs, liked_books):
 
 
 def similar_users(user_id):
+    update_df_books_users()
     books_liked_by_user = set(df_books_users[df_books_users['user_id'] == user_id]['book_id'])
     count_other_similar_users = df_books_users[df_books_users['book_id'].isin(books_liked_by_user)][
         'user_id'].value_counts()
