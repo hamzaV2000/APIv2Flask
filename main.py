@@ -69,11 +69,14 @@ le1 = preprocessing.LabelEncoder()
 le1.fit(df_books_users['book_id'])
 df_books_users['book_id_mapped'] = le1.transform(df_books_users['book_id'])
 
+df_books_users_ratings = df_books_users.merge(df_books_ratings, on='book_id')
+
 
 def update_books_ratings(changed_book_ids):
     global last
     global df_books_ratings
     global df_books_users
+    global df_books_users_ratings
     database1 = connect(host=host
                         , user=user, password=password, database="heaven", port=3306)
     for value in changed_book_ids:
@@ -92,6 +95,7 @@ def update_books_ratings(changed_book_ids):
     df_books_users['user_id_mapped'] = le9.transform(df_books_users['user_id'])
     le1.fit(df_books_users['book_id'])
     df_books_users['book_id_mapped'] = le1.transform(df_books_users['book_id'])
+    df_books_users_ratings = df_books_users.merge(df_books_ratings, on='book_id')
 
 
 def update_df_books_users():
@@ -155,9 +159,15 @@ class RecommendBySimilarUsers(Resource):
                         , mimetype='application/json')
 
 
-class RecommendBySimilarBooks(Resource):
+class RecommendBySimilarTitle(Resource):
     def get(self, title):
         return Response(top_50_similar_title_books(title).to_json(orient="records")
+                        , mimetype='application/json')
+
+
+class RecommendBySimilarBook(Resource):
+    def get(self, book_id):
+        return Response(similar_item_recommendation(book_id).to_json(orient="records")
                         , mimetype='application/json')
 
 
@@ -385,6 +395,29 @@ def user_favorites(user_id):
     return result['book_id']
 
 
+def similar_item_recommendation(book_id):
+    global df_books_users_ratings
+    users_who_liked_book = set(df_books_users_ratings[df_books_users_ratings['book_id'] == book_id]['user_id'])
+    books_id_remaining = df_books_users_ratings[
+        (df_books_users_ratings['user_id'].isin(list(users_who_liked_book)))]
+    ratings_mat_coo = coo_matrix((books_id_remaining["user_rating"],
+                                  (books_id_remaining["book_id_mapped"], books_id_remaining["user_id_mapped"])))
+    ratings_mat = ratings_mat_coo.tocsr()
+    my_index = list(le1.transform([book_id]))[0]
+    similarity = cosine_similarity(ratings_mat[my_index, :], ratings_mat).flatten()
+    similar_books_index = np.argsort(similarity)[-1:-51:-1]
+    score = [(score, book) for score, book in enumerate(similar_books_index)]
+    df_score = pd.DataFrame(score, columns=['score', 'book_id_mapped'])
+    df_similar_books_to_recommend = (
+        df_books_users_ratings[(df_books_users_ratings['book_id_mapped'].isin(list(similar_books_index)))].merge(
+            df_score, on='book_id_mapped'))[['book_id', 'score']]
+    unique_df_similar_books_to_recommend = df_similar_books_to_recommend.drop_duplicates(keep='first')
+    final_books = (df_books_processed[df_books_processed['book_id'].isin(
+        set(unique_df_similar_books_to_recommend['book_id'].values))].merge(unique_df_similar_books_to_recommend,
+                                                                            on='book_id')).sort_values(by='score')
+    return final_books['book_id']
+
+
 app = Flask(__name__)
 api = Api(app)
 CORS(app)
@@ -392,7 +425,8 @@ CORS(app)
 api.add_resource(TopN, "/python/topn")
 api.add_resource(UserFavorites, "/python/userFavorites/<int:user_id>")
 api.add_resource(RecommendBySimilarUsers, "/python/recommendBySimilarUsers/<int:user_id>")
-api.add_resource(RecommendBySimilarBooks, "/python/recommendBySimilarBooks/<string:title>")
+api.add_resource(RecommendBySimilarTitle, "/python/recommendBySimilarTitle/<string:title>")
+api.add_resource(RecommendBySimilarBook, "/python/recommendBySimilarBook/<int:book_id>")
 api.add_resource(Search, "/python/search/<string:domain>/<string:query>")
 
 if __name__ == "__main__":
