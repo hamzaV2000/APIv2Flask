@@ -389,9 +389,7 @@ def recommendation(df_similar_users_refined):
 def user_favorites(user_id):
     update_df_books_users()
     result = df_books_users[df_books_users['user_id'] == user_id]
-    print(result.head(5))
     result = result[result['user_rating'] >= 4.0]
-    result = df_books_processed.merge(result, on='book_id')
     return result['book_id']
 
 
