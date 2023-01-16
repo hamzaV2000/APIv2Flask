@@ -415,7 +415,7 @@ def similar_item_recommendation(book_id):
     final_books = (df_books_processed[df_books_processed['book_id'].isin(
         set(unique_df_similar_books_to_recommend['book_id'].values))].merge(unique_df_similar_books_to_recommend,
                                                                             on='book_id')).sort_values(by='score')
-    return final_books['book_id']
+    return final_books['book_id'].head(50)
 
 
 app = Flask(__name__)
