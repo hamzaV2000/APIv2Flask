@@ -203,6 +203,8 @@ class Search(Resource):
             return "not found"
 
 
+
+"""""
 vectorizer_description = load(open("content/vectorizer_description.pkl", "rb"))
 tfidf_description = load(open("content/tfidf_description.pkl", "rb"))
 vectorizer_title_fc = load(open("content/vectorizer_title.pkl", "rb"))
@@ -210,10 +212,6 @@ tfidf_title_fc = load(open("content/tfidf_title.pkl", "rb"))
 vectorizer_genres_fc = load(open("content/vectorizer_genres.pkl", "rb"))
 tfidf_genres_fc = load(open("content/tfidf_genres.pkl", "rb"))
 """""
-
-
-
-
 vectorizer_description = TfidfVectorizer(stop_words=stopwords)
 
 tfidf_description = vectorizer_description.fit_transform(df_books_processed['book_description'])
@@ -259,7 +257,7 @@ with open("content/vectorizer_genres.pkl", "rb") as p:
 
 with open("content/tfidf_genres.pkl", "rb") as p:
     tfidf_genres_fc = load(p)
-"""""
+
 
 
 def top_book_average_rating():
